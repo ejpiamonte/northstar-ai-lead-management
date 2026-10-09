@@ -1,0 +1,741 @@
+{
+  "_readme": "Fixture data for the Northstar admin dashboard. Each lead carries its ai_analysis, automation_run (pass to AutomationLogView), activities, and optional appointment. Salesperson ids match the SQL seed.",
+  "salespeople": [
+    {
+      "id": "5a000000-0000-4000-8000-000000000001",
+      "name": "Sarah Whitfield",
+      "email": "sarah@northstardigital.example",
+      "role_title": "Principal AI Automation Lead",
+      "tier_focus": "high"
+    },
+    {
+      "id": "5a000000-0000-4000-8000-000000000002",
+      "name": "Alex Moreno",
+      "email": "alex@northstardigital.example",
+      "role_title": "Senior Web App Consultant",
+      "tier_focus": "mid"
+    },
+    {
+      "id": "5a000000-0000-4000-8000-000000000003",
+      "name": "Maria Santos",
+      "email": "maria@northstardigital.example",
+      "role_title": "Client Success and Support Lead",
+      "tier_focus": "low"
+    }
+  ],
+  "leads": [
+    {
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "full_name": "Marcus Vellacott",
+      "email": "marcus.vellacott@haldenfreight.example",
+      "company": "Halden Freight Group",
+      "phone": "+1 415 555 0142",
+      "service_interest": "AI workflow automation",
+      "budget_range": "$25,000 - $50,000",
+      "timeline": "Kickoff within 3 weeks, go-live by end of Q1",
+      "message": "We run a 14-person dispatch desk and every freight quote arrives as an email or PDF from a different carrier. Dispatchers retype the details into HubSpot, and our average turnaround is around four hours. We want an AI workflow that reads the quotes, pulls out lane, weight, rate, and validity dates, enriches the deal in HubSpot, flags anything unusual in Slack, and drafts the reply for a dispatcher to approve. I have budget approved for this quarter and would like to start within three weeks.",
+      "source": "website_form",
+      "status": "assigned",
+      "tier": "high",
+      "score": 94,
+      "ai_analysis": {
+        "service_category": "ai_automation",
+        "intent": "ready_to_buy",
+        "urgency": "high",
+        "estimated_budget_usd": 37500,
+        "score": 94,
+        "confidence": 0.91,
+        "summary": "Marcus Vellacott, COO at Halden Freight Group, wants to automate freight quote intake for 14 dispatchers. Budget, timeline, and decision authority are all stated.",
+        "key_signals": [
+          "Decision maker (COO) wrote the enquiry",
+          "Budget of $25,000 to $50,000 stated",
+          "Kickoff within three weeks",
+          "Existing HubSpot and Slack stack to integrate",
+          "Clear measurable goal: cut quote turnaround from 4 hours to 15 minutes"
+        ],
+        "risks": [
+          "Quote PDFs vary by carrier, so extraction accuracy needs a pilot",
+          "Security review likely before access to the shared inbox"
+        ],
+        "recommended_next_step": "Book a 45-minute discovery call within one business day and ask for ten sample quote emails.",
+        "suggested_reply_subject": "Re: automating quote intake at Halden Freight",
+        "suggested_reply_body": "Hi Marcus,\n\nThanks for the detail on your quote workflow. Cutting turnaround from hours to minutes is realistic once the extraction step is reliable, so I would like to start with a focused discovery call. We will walk through a handful of real quote emails, the HubSpot fields you need, and how dispatchers will review exceptions.\n\nI have held a 45-minute slot tomorrow and the calendar link is below if another time suits you better.",
+        "provider": "mock",
+        "model": "heuristic-v1"
+      },
+      "assigned_to": "5a000000-0000-4000-8000-000000000001",
+      "assigned_to_name": "Sarah Whitfield",
+      "assigned_at": "2026-10-05T06:12:41.590Z",
+      "is_demo": true,
+      "created_at": "2026-10-05T06:12:41.220Z",
+      "automation_run": {
+        "id": "b1000000-0000-4000-8000-000000000001",
+        "lead_id": "a1000000-0000-4000-8000-000000000001",
+        "trigger": "webhook",
+        "mode": "demo",
+        "status": "success",
+        "ai_provider": "mock",
+        "model": "heuristic-v1",
+        "steps": [
+          {
+            "key": "validate_payload",
+            "label": "Validate form submission",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.220Z",
+            "duration_ms": 4,
+            "detail": "Payload accepted for marcus.vellacott@haldenfreight.example",
+            "output": {
+              "fields": [
+                "full_name",
+                "email",
+                "company",
+                "phone",
+                "service_interest",
+                "budget_range",
+                "timeline",
+                "message",
+                "source"
+              ]
+            }
+          },
+          {
+            "key": "check_demo_mode",
+            "label": "Check Demo Mode toggle",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.242Z",
+            "duration_ms": 38,
+            "detail": "Demo Mode on (app_settings or DEMO_MODE env). AI and email calls stay local.",
+            "output": {
+              "mode": "demo",
+              "source": "app_settings or DEMO_MODE env"
+            }
+          },
+          {
+            "key": "persist_lead",
+            "label": "Save lead record",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.298Z",
+            "duration_ms": 96,
+            "detail": "Lead a1000000-0000-4000-8000-000000000001 created with status \"new\"",
+            "output": {
+              "lead_id": "a1000000-0000-4000-8000-000000000001",
+              "repeat_submissions_24h": 0
+            }
+          },
+          {
+            "key": "ai_analysis",
+            "label": "Analyze lead with AI",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.412Z",
+            "duration_ms": 7,
+            "detail": "Demo Mode: deterministic mock analyzer used, no OpenAI call made.",
+            "output": {
+              "provider": "mock",
+              "model": "heuristic-v1",
+              "score": 94,
+              "category": "ai_automation"
+            }
+          },
+          {
+            "key": "apply_tier_rules",
+            "label": "Apply tier rules",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.437Z",
+            "duration_ms": 84,
+            "detail": "high tier: Score 94 is 75 or higher",
+            "output": {
+              "tier": "high",
+              "score": 94,
+              "estimated_budget_usd": 37500,
+              "category": "ai_automation"
+            }
+          },
+          {
+            "key": "assign_salesperson",
+            "label": "Assign salesperson",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.539Z",
+            "duration_ms": 143,
+            "detail": "high tier routes to Sarah Whitfield (0/8 open leads)",
+            "output": {
+              "salesperson": "Sarah Whitfield",
+              "salesperson_id": "5a000000-0000-4000-8000-000000000001",
+              "open_lead_counts": {
+                "Sarah Whitfield": 0,
+                "Alex Moreno": 2,
+                "Maria Santos": 3
+              }
+            }
+          },
+          {
+            "key": "generate_emails",
+            "label": "Generate and log emails",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.700Z",
+            "duration_ms": 112,
+            "detail": "2 emails written to email_logs as mock messages. Nothing was sent.",
+            "output": {
+              "live": false,
+              "recipients": [
+                "marcus.vellacott@haldenfreight.example",
+                "sarah@northstardigital.example"
+              ]
+            }
+          },
+          {
+            "key": "propose_appointment",
+            "label": "Propose discovery call",
+            "status": "success",
+            "started_at": "2026-10-05T06:12:41.830Z",
+            "duration_ms": 91,
+            "detail": "45-minute call proposed with Sarah Whitfield for Tue, 06 Oct 2026 17:00:00 GMT.",
+            "output": {
+              "appointment_id": "d1000000-0000-4000-8000-000000000001",
+              "scheduled_at": "2026-10-06T17:00:00.000Z"
+            }
+          }
+        ],
+        "duration_ms": 719,
+        "error": null,
+        "started_at": "2026-10-05T06:12:41.220Z",
+        "completed_at": "2026-10-05T06:12:41.939Z"
+      },
+      "activities": [
+        {
+          "id": "c0000001-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000001",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000001",
+          "salesperson_id": null,
+          "activity_type": "lead_received",
+          "title": "Form submission received",
+          "description": "Marcus Vellacott (Halden Freight Group) submitted the contact form.",
+          "metadata": {
+            "source": "website_form",
+            "mode": "demo"
+          },
+          "created_at": "2026-10-05T06:12:41.320Z"
+        },
+        {
+          "id": "c0000002-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000001",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000001",
+          "salesperson_id": null,
+          "activity_type": "ai_analysis",
+          "title": "Scored 94/100 (high tier)",
+          "description": "Marcus Vellacott, COO at Halden Freight Group, wants to automate freight quote intake for 14 dispatchers. Budget, timeline, and decision authority are all stated.",
+          "metadata": {
+            "provider": "mock",
+            "rule": "Score 94 is 75 or higher"
+          },
+          "created_at": "2026-10-05T06:12:41.410Z"
+        },
+        {
+          "id": "c0000003-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000001",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000001",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000001",
+          "activity_type": "assigned",
+          "title": "Assigned to Sarah Whitfield",
+          "description": "high tier routes to Sarah Whitfield (0/8 open leads)",
+          "metadata": {
+            "tier": "high"
+          },
+          "created_at": "2026-10-05T06:12:41.560Z"
+        },
+        {
+          "id": "c0000004-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000001",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000001",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000001",
+          "activity_type": "email_logged",
+          "title": "Emails drafted (mock)",
+          "description": "2 message(s) recorded for the lead and Sarah.",
+          "metadata": {
+            "live": false
+          },
+          "created_at": "2026-10-05T06:12:41.690Z"
+        },
+        {
+          "id": "c0000005-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000001",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000001",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000001",
+          "activity_type": "appointment_proposed",
+          "title": "Discovery call proposed",
+          "description": "45 minutes with Sarah Whitfield on Tue, 06 Oct 2026 17:00:00 GMT.",
+          "metadata": {
+            "appointment_id": "d1000000-0000-4000-8000-000000000001"
+          },
+          "created_at": "2026-10-05T06:12:41.790Z"
+        }
+      ],
+      "appointment": {
+        "id": "d1000000-0000-4000-8000-000000000001",
+        "lead_id": "a1000000-0000-4000-8000-000000000001",
+        "salesperson_id": "5a000000-0000-4000-8000-000000000001",
+        "scheduled_at": "2026-10-06T17:00:00.000Z",
+        "duration_minutes": 45,
+        "status": "proposed",
+        "meeting_url": "https://cal.northstardigital.example/sarah",
+        "notes": "Auto-proposed. Book a 45-minute discovery call within one business day and ask for ten sample quote emails."
+      }
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "full_name": "Priya Nandakumar",
+      "email": "priya.n@brightwelldental.example",
+      "company": "Brightwell Dental Partners",
+      "phone": "+1 646 555 0188",
+      "service_interest": "Custom web application",
+      "budget_range": "$8,000 - $15,000",
+      "timeline": "Launch next quarter",
+      "message": "We manage nine dental clinics and want a portal where patients can see appointments and forms, front-desk staff can track referrals, and referring dentists can upload scans and check status. Today this is spread across email and a shared spreadsheet. We are talking to a couple of agencies and want something we can launch next quarter. Our practice management system has an export but I am not sure about an API.",
+      "source": "website_form",
+      "status": "assigned",
+      "tier": "mid",
+      "score": 66,
+      "ai_analysis": {
+        "service_category": "web_app",
+        "intent": "evaluating",
+        "urgency": "medium",
+        "estimated_budget_usd": 11500,
+        "score": 66,
+        "confidence": 0.83,
+        "summary": "Priya Nandakumar, Head of Operations at Brightwell Dental Partners, is scoping a patient and referral portal for 9 clinics. Real budget and a quarter-level timeline, but still comparing vendors.",
+        "key_signals": [
+          "Budget of $8,000 to $15,000 stated",
+          "Launch targeted for next quarter",
+          "Clear user groups: patients, front-desk staff, referring dentists",
+          "Second submission in a day suggests active research"
+        ],
+        "risks": [
+          "Patient data means a privacy review is likely",
+          "Integration with the existing practice management system is undefined",
+          "Currently evaluating other vendors"
+        ],
+        "recommended_next_step": "Schedule a scoping call, then send a fixed-scope proposal with the integration assumptions listed.",
+        "suggested_reply_subject": "Re: referral portal for Brightwell Dental",
+        "suggested_reply_body": "Hi Priya,\n\nThanks for sharing the scope. A portal for patients, front-desk staff, and referring dentists is a good fit for a custom build, and the privacy and integration questions you raised are the right ones to settle first. A short scoping call will let us confirm what the practice management system exposes and what the first release should include.\n\nYou can pick a time with me using the link below.",
+        "provider": "mock",
+        "model": "heuristic-v1"
+      },
+      "assigned_to": "5a000000-0000-4000-8000-000000000002",
+      "assigned_to_name": "Alex Moreno",
+      "assigned_at": "2026-10-05T07:48:09.880Z",
+      "is_demo": true,
+      "created_at": "2026-10-05T07:48:09.480Z",
+      "automation_run": {
+        "id": "b1000000-0000-4000-8000-000000000002",
+        "lead_id": "a1000000-0000-4000-8000-000000000002",
+        "trigger": "webhook",
+        "mode": "demo",
+        "status": "partial",
+        "ai_provider": "mock",
+        "model": "heuristic-v1",
+        "steps": [
+          {
+            "key": "validate_payload",
+            "label": "Validate form submission",
+            "status": "success",
+            "started_at": "2026-10-05T07:48:09.480Z",
+            "duration_ms": 3,
+            "detail": "Payload accepted for priya.n@brightwelldental.example",
+            "output": {
+              "fields": [
+                "full_name",
+                "email",
+                "company",
+                "phone",
+                "service_interest",
+                "budget_range",
+                "timeline",
+                "message",
+                "source"
+              ]
+            }
+          },
+          {
+            "key": "check_demo_mode",
+            "label": "Check Demo Mode toggle",
+            "status": "success",
+            "started_at": "2026-10-05T07:48:09.501Z",
+            "duration_ms": 41,
+            "detail": "Demo Mode on (app_settings or DEMO_MODE env). AI and email calls stay local.",
+            "output": {
+              "mode": "demo",
+              "source": "app_settings or DEMO_MODE env"
+            }
+          },
+          {
+            "key": "persist_lead",
+            "label": "Save lead record",
+            "status": "warning",
+            "started_at": "2026-10-05T07:48:09.560Z",
+            "duration_ms": 118,
+            "detail": "Lead a1000000-0000-4000-8000-000000000002 created. The same email submitted 1 time(s) in the last 24 hours.",
+            "output": {
+              "lead_id": "a1000000-0000-4000-8000-000000000002",
+              "repeat_submissions_24h": 1
+            }
+          },
+          {
+            "key": "ai_analysis",
+            "label": "Analyze lead with AI",
+            "status": "success",
+            "started_at": "2026-10-05T07:48:09.696Z",
+            "duration_ms": 6,
+            "detail": "Demo Mode: deterministic mock analyzer used, no OpenAI call made.",
+            "output": {
+              "provider": "mock",
+              "model": "heuristic-v1",
+              "score": 66,
+              "category": "web_app"
+            }
+          },
+          {
+            "key": "apply_tier_rules",
+            "label": "Apply tier rules",
+            "status": "success",
+            "started_at": "2026-10-05T07:48:09.720Z",
+            "duration_ms": 79,
+            "detail": "mid tier: Score 66 is between 40 and 74",
+            "output": {
+              "tier": "mid",
+              "score": 66,
+              "estimated_budget_usd": 11500,
+              "category": "web_app"
+            }
+          },
+          {
+            "key": "assign_salesperson",
+            "label": "Assign salesperson",
+            "status": "success",
+            "started_at": "2026-10-05T07:48:09.817Z",
+            "duration_ms": 151,
+            "detail": "mid tier routes to Alex Moreno (2/12 open leads)",
+            "output": {
+              "salesperson": "Alex Moreno",
+              "salesperson_id": "5a000000-0000-4000-8000-000000000002",
+              "open_lead_counts": {
+                "Sarah Whitfield": 1,
+                "Alex Moreno": 2,
+                "Maria Santos": 3
+              }
+            }
+          },
+          {
+            "key": "generate_emails",
+            "label": "Generate and log emails",
+            "status": "success",
+            "started_at": "2026-10-05T07:48:09.986Z",
+            "duration_ms": 104,
+            "detail": "2 emails written to email_logs as mock messages. Nothing was sent.",
+            "output": {
+              "live": false,
+              "recipients": [
+                "priya.n@brightwelldental.example",
+                "alex@northstardigital.example"
+              ]
+            }
+          },
+          {
+            "key": "propose_appointment",
+            "label": "Propose discovery call",
+            "status": "skipped",
+            "started_at": "2026-10-05T07:48:10.108Z",
+            "duration_ms": 1,
+            "detail": "Only high-tier leads get an automatic proposal. This lead is mid tier."
+          }
+        ],
+        "duration_ms": 647,
+        "error": null,
+        "started_at": "2026-10-05T07:48:09.480Z",
+        "completed_at": "2026-10-05T07:48:10.127Z"
+      },
+      "activities": [
+        {
+          "id": "c0000006-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000002",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000002",
+          "salesperson_id": null,
+          "activity_type": "lead_received",
+          "title": "Form submission received",
+          "description": "Priya Nandakumar (Brightwell Dental Partners) submitted the contact form.",
+          "metadata": {
+            "source": "website_form",
+            "mode": "demo"
+          },
+          "created_at": "2026-10-05T07:48:09.650Z"
+        },
+        {
+          "id": "c0000007-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000002",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000002",
+          "salesperson_id": null,
+          "activity_type": "ai_analysis",
+          "title": "Scored 66/100 (mid tier)",
+          "description": "Priya Nandakumar, Head of Operations at Brightwell Dental Partners, is scoping a patient and referral portal for 9 clinics. Real budget and a quarter-level timeline, but still comparing vendors.",
+          "metadata": {
+            "provider": "mock",
+            "rule": "Score 66 is between 40 and 74"
+          },
+          "created_at": "2026-10-05T07:48:09.740Z"
+        },
+        {
+          "id": "c0000008-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000002",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000002",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000002",
+          "activity_type": "assigned",
+          "title": "Assigned to Alex Moreno",
+          "description": "mid tier routes to Alex Moreno (2/12 open leads)",
+          "metadata": {
+            "tier": "mid"
+          },
+          "created_at": "2026-10-05T07:48:09.890Z"
+        },
+        {
+          "id": "c0000009-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000002",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000002",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000002",
+          "activity_type": "email_logged",
+          "title": "Emails drafted (mock)",
+          "description": "2 message(s) recorded for the lead and Alex.",
+          "metadata": {
+            "live": false
+          },
+          "created_at": "2026-10-05T07:48:10.000Z"
+        }
+      ],
+      "appointment": null
+    },
+    {
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "full_name": "Tom Ashby",
+      "email": "tom@ashbybakery.example",
+      "company": "Ashby & Daughters Bakery",
+      "phone": null,
+      "service_interest": "Website support",
+      "budget_range": "Under $500",
+      "timeline": "As soon as possible",
+      "message": "Our contact form stopped sending emails after a plugin update last week. We take custom cake orders through it and I think we have missed at least a few. The site is on WordPress. Can someone fix it this week? I do not have much budget, it is a small family bakery.",
+      "source": "website_form",
+      "status": "assigned",
+      "tier": "low",
+      "score": 27,
+      "ai_analysis": {
+        "service_category": "support_maintenance",
+        "intent": "support_request",
+        "urgency": "high",
+        "estimated_budget_usd": 500,
+        "score": 27,
+        "confidence": 0.88,
+        "summary": "Tom Ashby, owner of Ashby & Daughters Bakery, reports that the website contact form stopped sending after a plugin update and he is missing custom cake orders. A small, urgent support fix.",
+        "key_signals": [
+          "Specific, reproducible problem",
+          "Urgent because orders are being missed",
+          "Budget under $500 stated"
+        ],
+        "risks": [
+          "Small budget limits scope to a fix, not a rebuild",
+          "No admin access confirmed yet"
+        ],
+        "recommended_next_step": "Triage the form plugin, confirm access, and reply within one business day with a fixed price.",
+        "suggested_reply_subject": "Re: contact form not sending",
+        "suggested_reply_body": "Hi Tom,\n\nThanks for flagging this. A form that stops sending after a plugin update is usually quick to fix, and we can look at it right away. Please reply with the page the form is on and the name of the plugin that was updated, and tell us whether you can share a temporary admin login. We will confirm the fix and a fixed price in one business day.",
+        "provider": "mock",
+        "model": "heuristic-v1"
+      },
+      "assigned_to": "5a000000-0000-4000-8000-000000000003",
+      "assigned_to_name": "Maria Santos",
+      "assigned_at": "2026-10-05T08:31:55.440Z",
+      "is_demo": true,
+      "created_at": "2026-10-05T08:31:55.090Z",
+      "automation_run": {
+        "id": "b1000000-0000-4000-8000-000000000003",
+        "lead_id": "a1000000-0000-4000-8000-000000000003",
+        "trigger": "webhook",
+        "mode": "demo",
+        "status": "success",
+        "ai_provider": "mock",
+        "model": "heuristic-v1",
+        "steps": [
+          {
+            "key": "validate_payload",
+            "label": "Validate form submission",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.090Z",
+            "duration_ms": 3,
+            "detail": "Payload accepted for tom@ashbybakery.example",
+            "output": {
+              "fields": [
+                "full_name",
+                "email",
+                "company",
+                "service_interest",
+                "budget_range",
+                "timeline",
+                "message",
+                "source"
+              ]
+            }
+          },
+          {
+            "key": "check_demo_mode",
+            "label": "Check Demo Mode toggle",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.111Z",
+            "duration_ms": 36,
+            "detail": "Demo Mode on (app_settings or DEMO_MODE env). AI and email calls stay local.",
+            "output": {
+              "mode": "demo",
+              "source": "app_settings or DEMO_MODE env"
+            }
+          },
+          {
+            "key": "persist_lead",
+            "label": "Save lead record",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.165Z",
+            "duration_ms": 92,
+            "detail": "Lead a1000000-0000-4000-8000-000000000003 created with status \"new\"",
+            "output": {
+              "lead_id": "a1000000-0000-4000-8000-000000000003",
+              "repeat_submissions_24h": 0
+            }
+          },
+          {
+            "key": "ai_analysis",
+            "label": "Analyze lead with AI",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.275Z",
+            "duration_ms": 5,
+            "detail": "Demo Mode: deterministic mock analyzer used, no OpenAI call made.",
+            "output": {
+              "provider": "mock",
+              "model": "heuristic-v1",
+              "score": 27,
+              "category": "support_maintenance"
+            }
+          },
+          {
+            "key": "apply_tier_rules",
+            "label": "Apply tier rules",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.298Z",
+            "duration_ms": 77,
+            "detail": "low tier: Support request with budget under $2,500",
+            "output": {
+              "tier": "low",
+              "score": 27,
+              "estimated_budget_usd": 500,
+              "category": "support_maintenance"
+            }
+          },
+          {
+            "key": "assign_salesperson",
+            "label": "Assign salesperson",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.393Z",
+            "duration_ms": 138,
+            "detail": "low tier routes to Maria Santos (3/20 open leads)",
+            "output": {
+              "salesperson": "Maria Santos",
+              "salesperson_id": "5a000000-0000-4000-8000-000000000003",
+              "open_lead_counts": {
+                "Sarah Whitfield": 1,
+                "Alex Moreno": 3,
+                "Maria Santos": 3
+              }
+            }
+          },
+          {
+            "key": "generate_emails",
+            "label": "Generate and log emails",
+            "status": "success",
+            "started_at": "2026-10-05T08:31:55.549Z",
+            "duration_ms": 99,
+            "detail": "2 emails written to email_logs as mock messages. Nothing was sent.",
+            "output": {
+              "live": false,
+              "recipients": [
+                "tom@ashbybakery.example",
+                "maria@northstardigital.example"
+              ]
+            }
+          },
+          {
+            "key": "propose_appointment",
+            "label": "Propose discovery call",
+            "status": "skipped",
+            "started_at": "2026-10-05T08:31:55.666Z",
+            "duration_ms": 1,
+            "detail": "Only high-tier leads get an automatic proposal. This lead is low tier."
+          }
+        ],
+        "duration_ms": 595,
+        "error": null,
+        "started_at": "2026-10-05T08:31:55.090Z",
+        "completed_at": "2026-10-05T08:31:55.685Z"
+      },
+      "activities": [
+        {
+          "id": "c0000010-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000003",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000003",
+          "salesperson_id": null,
+          "activity_type": "lead_received",
+          "title": "Form submission received",
+          "description": "Tom Ashby (Ashby & Daughters Bakery) submitted the contact form.",
+          "metadata": {
+            "source": "website_form",
+            "mode": "demo"
+          },
+          "created_at": "2026-10-05T08:31:55.185Z"
+        },
+        {
+          "id": "c0000011-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000003",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000003",
+          "salesperson_id": null,
+          "activity_type": "ai_analysis",
+          "title": "Scored 27/100 (low tier)",
+          "description": "Tom Ashby, owner of Ashby & Daughters Bakery, reports that the website contact form stopped sending after a plugin update and he is missing custom cake orders. A small, urgent support fix.",
+          "metadata": {
+            "provider": "mock",
+            "rule": "Support request with budget under $2,500"
+          },
+          "created_at": "2026-10-05T08:31:55.270Z"
+        },
+        {
+          "id": "c0000012-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000003",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000003",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000003",
+          "activity_type": "assigned",
+          "title": "Assigned to Maria Santos",
+          "description": "low tier routes to Maria Santos (3/20 open leads)",
+          "metadata": {
+            "tier": "low"
+          },
+          "created_at": "2026-10-05T08:31:55.420Z"
+        },
+        {
+          "id": "c0000013-0000-4000-8000-000000000000",
+          "lead_id": "a1000000-0000-4000-8000-000000000003",
+          "automation_run_id": "b1000000-0000-4000-8000-000000000003",
+          "salesperson_id": "5a000000-0000-4000-8000-000000000003",
+          "activity_type": "email_logged",
+          "title": "Emails drafted (mock)",
+          "description": "2 message(s) recorded for the lead and Maria.",
+          "metadata": {
+            "live": false
+          },
+          "created_at": "2026-10-05T08:31:55.530Z"
+        }
+      ],
+      "appointment": null
+    }
+  ]
+}

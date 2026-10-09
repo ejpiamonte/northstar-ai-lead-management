@@ -1,0 +1,498 @@
+{
+  "name": "Northstar AI Lead Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Northstar lead pipeline\nWebhook > Supabase duplicate check > OpenAI analysis > tier rules > assignment > Slack and email mock.\nMirrors app/api/webhook/lead/route.ts.",
+        "height": 120,
+        "width": 520,
+        "color": 5
+      },
+      "id": "note-1",
+      "name": "Architecture note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -120,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "northstar-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "northstar-lead-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "leads",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "string",
+        "filterString": "=email=eq.{{ $('Webhook').item.json.body.email }}&created_at=gte.{{ $now.minus({ hours: 24 }).toISO() }}"
+      },
+      "id": "node-supabase",
+      "name": "Supabase Check",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        240,
+        100
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "Northstar Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Webhook').first().json.body ?? {};\nconst existing = $input.all().filter((i) => i.json && i.json.id);\n\nconst system = [\n  'You qualify inbound leads for Northstar Digital, an agency selling AI workflow automation, custom web apps, websites, and support retainers.',\n  'Return JSON matching the schema exactly.',\n  'Score 0-100: service fit (0-40), budget (0-30), urgency (0-15), message quality (0-15).',\n  'estimated_budget_usd is a single USD number (midpoint of a range) or 0 if unknown.',\n  'suggested_reply_body starts with \"Hi <first name>,\" has no signature and stays under 120 words.'\n].join('\\n');\n\nconst schema = {\n  type: 'object',\n  additionalProperties: false,\n  required: ['service_category','intent','urgency','estimated_budget_usd','score','confidence','summary','key_signals','risks','recommended_next_step','suggested_reply_subject','suggested_reply_body'],\n  properties: {\n    service_category: { type: 'string', enum: ['ai_automation','web_app','website','support_maintenance','consulting','other'] },\n    intent: { type: 'string', enum: ['ready_to_buy','evaluating','exploring','support_request'] },\n    urgency: { type: 'string', enum: ['low','medium','high'] },\n    estimated_budget_usd: { type: 'number' },\n    score: { type: 'integer' },\n    confidence: { type: 'number' },\n    summary: { type: 'string' },\n    key_signals: { type: 'array', items: { type: 'string' } },\n    risks: { type: 'array', items: { type: 'string' } },\n    recommended_next_step: { type: 'string' },\n    suggested_reply_subject: { type: 'string' },\n    suggested_reply_body: { type: 'string' }\n  }\n};\n\nreturn [{\n  json: {\n    lead: body,\n    is_repeat_submission: existing.length > 0,\n    request: {\n      model: 'gpt-4o-mini',\n      temperature: 0.2,\n      messages: [\n        { role: 'system', content: system },\n        { role: 'user', content: JSON.stringify(body) }\n      ],\n      response_format: { type: 'json_schema', json_schema: { name: 'lead_analysis', strict: true, schema } }\n    }\n  }\n}];"
+      },
+      "id": "node-prompt",
+      "name": "Build AI Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-openai",
+      "name": "OpenAI Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $('Build AI Prompt').first().json.lead;\nconst isRepeat = $('Build AI Prompt').first().json.is_repeat_submission;\n\nlet a;\nlet source = 'openai';\ntry {\n  a = JSON.parse($json.choices[0].message.content);\n} catch (e) {\n  source = 'fallback';\n  a = {\n    service_category: 'other', intent: 'exploring', urgency: 'low',\n    estimated_budget_usd: 0, score: 40, confidence: 0,\n    summary: 'AI analysis unavailable. Routed with a neutral score.',\n    key_signals: [], risks: ['AI analysis failed'],\n    recommended_next_step: 'Review manually.',\n    suggested_reply_subject: 'Re: your enquiry to Northstar Digital',\n    suggested_reply_body: 'Hi ' + String(lead.full_name || '').split(' ')[0] + ',\\n\\nThanks for reaching out. We will review your message and reply shortly.'\n  };\n}\n\nlet tier = 'low';\nlet rule = 'Score below 40';\nif (a.score >= 75) { tier = 'high'; rule = 'Score 75 or higher'; }\nelse if (a.service_category === 'ai_automation' && a.estimated_budget_usd >= 10000) { tier = 'high'; rule = 'AI automation with budget of 10,000 or more'; }\nelse if (a.service_category === 'support_maintenance' && a.estimated_budget_usd < 2500) { tier = 'low'; rule = 'Support request under 2,500'; }\nelse if (a.score >= 40) { tier = 'mid'; rule = 'Score between 40 and 74'; }\n\nreturn [{ json: { lead, analysis: a, analysis_source: source, is_repeat_submission: isRepeat, tier, tier_rule: rule } }];"
+      },
+      "id": "node-tier",
+      "name": "Score and Tier",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-high",
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "high",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "High tier"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-mid",
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "mid",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Mid tier"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "cond-low",
+                    "leftValue": "={{ $json.tier }}",
+                    "rightValue": "low",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Low tier"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-switch",
+      "name": "Assignment Branch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "node-sarah-a",
+              "name": "assigned_name",
+              "value": "Sarah Whitfield",
+              "type": "string"
+            },
+            {
+              "id": "node-sarah-b",
+              "name": "assigned_email",
+              "value": "sarah@northstardigital.example",
+              "type": "string"
+            },
+            {
+              "id": "node-sarah-c",
+              "name": "assigned_role",
+              "value": "Principal AI Automation Lead",
+              "type": "string"
+            },
+            {
+              "id": "node-sarah-d",
+              "name": "slack_channel",
+              "value": "#leads-high-value",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "node-sarah",
+      "name": "Assign Sarah",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "node-alex-a",
+              "name": "assigned_name",
+              "value": "Alex Moreno",
+              "type": "string"
+            },
+            {
+              "id": "node-alex-b",
+              "name": "assigned_email",
+              "value": "alex@northstardigital.example",
+              "type": "string"
+            },
+            {
+              "id": "node-alex-c",
+              "name": "assigned_role",
+              "value": "Senior Web App Consultant",
+              "type": "string"
+            },
+            {
+              "id": "node-alex-d",
+              "name": "slack_channel",
+              "value": "#leads-web-apps",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "node-alex",
+      "name": "Assign Alex",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "node-maria-a",
+              "name": "assigned_name",
+              "value": "Maria Santos",
+              "type": "string"
+            },
+            {
+              "id": "node-maria-b",
+              "name": "assigned_email",
+              "value": "maria@northstardigital.example",
+              "type": "string"
+            },
+            {
+              "id": "node-maria-c",
+              "name": "assigned_role",
+              "value": "Client Success and Support Lead",
+              "type": "string"
+            },
+            {
+              "id": "node-maria-d",
+              "name": "slack_channel",
+              "value": "#leads-support",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "node-maria",
+      "name": "Assign Maria",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1440,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\nconst repLine = d.assigned_name + ', ' + d.assigned_role;\n\nconst slack = {\n  channel: d.slack_channel,\n  mock: true,\n  text: 'New ' + d.tier + '-tier lead for ' + d.assigned_name + ': ' + d.lead.full_name + (d.lead.company ? ' (' + d.lead.company + ')' : ''),\n  blocks: [\n    { type: 'header', text: { type: 'plain_text', text: 'New ' + d.tier + '-tier lead' } },\n    { type: 'section', fields: [\n      { type: 'mrkdwn', text: '*Score*\\n' + d.analysis.score + '/100' },\n      { type: 'mrkdwn', text: '*Assigned to*\\n' + d.assigned_name },\n      { type: 'mrkdwn', text: '*Category*\\n' + d.analysis.service_category },\n      { type: 'mrkdwn', text: '*Urgency*\\n' + d.analysis.urgency }\n    ]},\n    { type: 'section', text: { type: 'mrkdwn', text: d.analysis.summary } },\n    { type: 'context', elements: [{ type: 'mrkdwn', text: 'Rule: ' + d.tier_rule }] }\n  ]\n};\n\nconst email = {\n  mock: true,\n  to: d.lead.email,\n  from: d.assigned_email,\n  subject: d.analysis.suggested_reply_subject,\n  body: d.analysis.suggested_reply_body + '\\n\\n' + repLine + ', Northstar Digital'\n};\n\nreturn [{ json: {\n  ok: true,\n  tier: d.tier,\n  score: d.analysis.score,\n  assigned_to: d.assigned_name,\n  analysis_source: d.analysis_source,\n  is_repeat_submission: d.is_repeat_submission,\n  slack_message: slack,\n  email_draft: email\n}}];"
+      },
+      "id": "node-mock",
+      "name": "Slack and Email Mock",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "node-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1920,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Supabase Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Check": {
+      "main": [
+        [
+          {
+            "node": "Build AI Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Prompt": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Score and Tier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score and Tier": {
+      "main": [
+        [
+          {
+            "node": "Assignment Branch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assignment Branch": {
+      "main": [
+        [
+          {
+            "node": "Assign Sarah",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assign Alex",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assign Maria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Sarah": {
+      "main": [
+        [
+          {
+            "node": "Slack and Email Mock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Alex": {
+      "main": [
+        [
+          {
+            "node": "Slack and Email Mock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Maria": {
+      "main": [
+        [
+          {
+            "node": "Slack and Email Mock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack and Email Mock": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "northstar"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}
