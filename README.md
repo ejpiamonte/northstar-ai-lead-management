@@ -52,3 +52,8 @@ Without Supabase environment variables, the landing page and static demo dashboa
 - `data/seed-leads.json` — detailed fictional workflow fixture data.
 - `n8n/northstar-lead-workflow.json` — illustrative n8n workflow export; credentials must be configured in n8n and the export is not required to run the Next.js demo.
 - `docs/ARCHITECTURE.md` — architecture and routing rules.
+
+
+## Shared Supabase setup
+
+To share the existing Northstar project with LedgerLens and Niven, see [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md). Inspect hosted metadata before applying [the additive SQL](supabase/shared/002_add_to_existing_northstar.sql). The empty bootstrap is for empty destinations only. No existing records or files are imported. SQL execution against Supabase remains pending.
