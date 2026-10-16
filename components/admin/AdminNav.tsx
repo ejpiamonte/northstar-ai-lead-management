@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-type IconName = 'overview' | 'leads' | 'calendar' | 'runs' | 'mail' | 'team';
+type IconName = 'overview' | 'leads' | 'calendar' | 'runs' | 'mail' | 'team' | 'guide';
 
 const ICONS: Record<IconName, string> = {
   overview: 'M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z',
@@ -13,6 +13,7 @@ const ICONS: Record<IconName, string> = {
   runs: 'M2 10h4l2-6 4 12 2-6h4',
   mail: 'M2 4h16v12H2zM2 5l8 6 8-6',
   team: 'M10 9a3 3 0 100-6 3 3 0 000 6zM4 17c0-3 2.7-5 6-5s6 2 6 5',
+  guide: 'M3 4h5a2 2 0 012 2v11a2 2 0 00-2-2H3zM17 4h-5a2 2 0 00-2 2v11a2 2 0 012-2h5z',
 };
 
 interface NavItem {
@@ -27,7 +28,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: '/admin', label: 'Overview', icon: 'overview' },
       { href: '/admin/leads', label: 'Leads', icon: 'leads' },
-      { href: '/admin/appointments', label: 'Appointments', icon: 'calendar' },
+      { href: '/admin/appointments', label: 'Meetings', icon: 'calendar' },
     ],
   },
   {
@@ -35,11 +36,12 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: '/admin/runs', label: 'Run history', icon: 'runs' },
       { href: '/admin/emails', label: 'Email log', icon: 'mail' },
+      { href: '/admin/how-it-works', label: 'How it works', icon: 'guide' },
     ],
   },
   {
     title: 'Team',
-    items: [{ href: '/admin/team', label: 'Salespeople', icon: 'team' }],
+    items: [{ href: '/admin/team', label: 'Sales team', icon: 'team' }],
   },
 ];
 
@@ -110,10 +112,7 @@ export default function AdminNav({ variant = 'sidebar' }: { variant?: 'sidebar' 
                     }`}
                   >
                     {active && (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-[#F2B544]"
-                      />
+                      <span aria-hidden="true" className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-[#F2B544]" />
                     )}
                     <Icon name={item.icon} />
                     {item.label}

@@ -1,11 +1,5 @@
 import type { ReactNode } from 'react';
-import type {
-  AutomationRun,
-  AutomationStep,
-  LeadActivity,
-  RunStatus,
-  StepStatus,
-} from '@/lib/automation-types';
+import type { AutomationRun, AutomationStep, LeadActivity, RunStatus, StepStatus } from '@/lib/automation-types';
 
 interface Props {
   run: AutomationRun;
@@ -94,9 +88,7 @@ function StepNode({ status }: { status: StepStatus }) {
 
 function Chip({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${className}`}
-    >
+    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${className}`}>
       {children}
     </span>
   );
@@ -123,10 +115,7 @@ function StepRow({
   return (
     <li className="relative flex gap-4 pb-7 last:pb-0">
       {!isLast && (
-        <span
-          aria-hidden="true"
-          className="absolute left-4 top-8 -ml-px h-[calc(100%-2rem)] w-0.5 bg-slate-200"
-        />
+        <span aria-hidden="true" className="absolute left-4 top-8 -ml-px h-[calc(100%-2rem)] w-0.5 bg-slate-200" />
       )}
       <StepNode status={step.status} />
 
@@ -177,9 +166,7 @@ export default function AutomationLogView({ run, activities = [], className = ''
   const titleId = `run-${run.id}-title`;
   const stepTotal = steps.reduce((sum, s) => sum + s.duration_ms, 0);
   const total = Math.max(run.duration_ms ?? stepTotal, 1);
-  const originMs = steps.length
-    ? new Date(steps[0].started_at).getTime()
-    : new Date(run.started_at).getTime();
+  const originMs = steps.length ? new Date(steps[0].started_at).getTime() : new Date(run.started_at).getTime();
 
   const counts = steps.reduce(
     (acc, s) => ({ ...acc, [s.status]: (acc[s.status] ?? 0) + 1 }),
@@ -201,8 +188,8 @@ export default function AutomationLogView({ run, activities = [], className = ''
             Automation audit trail
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Run <code className="text-slate-700">{run.id.slice(0, 8)}</code> started at{' '}
-            {formatClock(run.started_at)} from the {run.trigger}.
+            Run <code className="text-slate-700">{run.id.slice(0, 8)}</code> started at {formatClock(run.started_at)}{' '}
+            from the {run.trigger}.
           </p>
         </div>
 
@@ -249,8 +236,8 @@ export default function AutomationLogView({ run, activities = [], className = ''
 
       {steps.length === 0 ? (
         <p className="mt-6 rounded-xl bg-slate-50 p-5 text-sm text-slate-600 ring-1 ring-slate-200">
-          No steps were recorded for this run yet. Submit a lead through the contact form to see each
-          automation step appear here.
+          No steps were recorded for this run yet. Submit a lead through the contact form to see each automation step
+          appear here.
         </p>
       ) : (
         <ol className="mt-7">
@@ -276,9 +263,7 @@ export default function AutomationLogView({ run, activities = [], className = ''
                 <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#F2B544]" />
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-[#0B1F3A]">{a.title}</p>
-                  {a.description && (
-                    <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{a.description}</p>
-                  )}
+                  {a.description && <p className="mt-0.5 text-sm leading-relaxed text-slate-600">{a.description}</p>}
                   <p className="mt-0.5 text-xs text-slate-500">{formatClock(a.created_at)}</p>
                 </div>
               </li>

@@ -1,135 +1,124 @@
-// app/admin/runs/page.tsx
 import Link from 'next/link';
-import { getAdminClient } from '@/lib/supabase/admin';
-import { unwrap } from '@/lib/admin-data';
-import type { AutomationRun, LeadActivity } from '@/lib/automation-types';
+import { getLeads } from '@/lib/data';
 import AutomationLogView from '@/components/AutomationLogView';
-import {
-  Badge,
-  EmptyState,
-  PageHeader,
-  StatusBadge,
-  TableShell,
-  fmtDateTime,
-  fmtMs,
-  linkCls,
-  td,
-  th,
-} from '@/components/admin/ui';
+import { PageHeader, Stat, StatusBadge, TableShell, fmtDateTime, fmtMs, linkCls, td, th } from '@/components/admin/ui';
 
 export const metadata = { title: 'Run history' };
-export const dynamic = 'force-dynamic';
 
-type RunWithLead = AutomationRun & { leads: { full_name: string } | null };
+const PAGE_SIZE = 30;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export default async function RunsPage({ searchParams }: { searchParams: Promise<{ run?: string }> }) {
-  const { run: selectedId } = await searchParams;
-  const db = getAdminClient();
-
-  const res = await db
-    .from('automation_runs')
-    .select('*, leads(full_name)')
-    .order('started_at', { ascending: false })
-    .limit(100);
-  const runs = unwrap<RunWithLead[]>(res, 'Load runs');
-
-  const selected = selectedId && UUID.test(selectedId) ? runs.find((r) => r.id === selectedId) : undefined;
-  let activities: LeadActivity[] = [];
-  if (selected?.lead_id) {
-    const actRes = await db
-      .from('lead_activities')
-      .select('id, activity_type, title, description, created_at, metadata')
-      .eq('automation_run_id', selected.id)
-      .order('created_at', { ascending: true });
-    activities = unwrap<LeadActivity[]>(actRes, 'Load activities');
-  }
+export default async function RunsPage({ searchParams }: { searchParams: Promise<{ run?: string; page?: string }> }) {
+  const { run: selectedId, page: pageParam } = await searchParams;
+  const leads = await getLeads();
+  const runs = leads.map((l) => ({ run: l.run, lead: l }));
+  const selected = selectedId ? runs.find((r) => r.run.id === selectedId) : undefined;
+  const pages = Math.max(1, Math.ceil(runs.length / PAGE_SIZE));
+  const page = Math.min(pages, Math.max(1, Number(pageParam) || 1));
+  const visible = runs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const durations = runs.map((r) => r.run.duration_ms ?? 0).sort((a, b) => a - b);
+  const skippedCalls = runs.filter((r) =>
+    r.run.steps.some((s) => s.key === 'propose_appointment' && s.status === 'skipped'),
+  ).length;
 
   return (
     <>
       <PageHeader
         title="Run history"
-        description="Every webhook execution with the steps the automation took. Select a run to read its audit trail."
+        description="One automation run per enquiry: every step, its timing, and its result. Select a run to read its audit trail."
       />
 
-      {runs.length === 0 ? (
-        <EmptyState
-          title="No automation runs yet"
-          body="Post a lead to /api/webhook/lead and the run appears here with each step, timing, and result."
+      <section className="mb-6 grid gap-4 sm:grid-cols-3">
+        <Stat label="Runs" value={String(runs.length)} hint="Last 30 days" />
+        <Stat
+          label="Median run time"
+          value={fmtMs(durations[Math.floor(durations.length / 2)] ?? 0)}
+          hint="Form received to reply drafted"
         />
-      ) : (
-        <div className="flex flex-col gap-8">
-          {selected ? (
-            <div>
-              <p className="mb-3 text-sm">
-                <Link href="/admin/runs" className={linkCls}>
-                  Close audit trail
-                </Link>
-                {selected.lead_id && (
-                  <>
-                    {' · '}
-                    <Link href={`/admin/leads/${selected.lead_id}`} className={linkCls}>
-                      Open lead
-                    </Link>
-                  </>
-                )}
-              </p>
-              <AutomationLogView run={selected} activities={activities} />
-            </div>
-          ) : selectedId ? (
-            <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800 ring-1 ring-amber-200">
-              That run is not in the latest 100. Open it from its lead page instead.
-            </p>
-          ) : null}
+        <Stat
+          label="Failed runs"
+          value={String(runs.filter((r) => r.run.status === 'failed').length)}
+          hint={`${skippedCalls} runs skipped the call proposal (not high tier)`}
+        />
+      </section>
 
-          <TableShell>
-            <thead>
-              <tr>
-                <th className={th}>Started</th>
-                <th className={th}>Lead</th>
-                <th className={th}>Status</th>
-                <th className={th}>Mode</th>
-                <th className={th}>AI</th>
-                <th className={th}>Steps</th>
-                <th className={th}>Duration</th>
-                <th className={th}>
-                  <span className="sr-only">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((r) => (
-                <tr key={r.id} className={r.id === selected?.id ? 'bg-[#FDF3DC]/50' : 'hover:bg-slate-50/70'}>
-                  <td className={`${td} whitespace-nowrap`}>{fmtDateTime(r.started_at)}</td>
-                  <td className={td}>
-                    {r.lead_id ? (
-                      <Link href={`/admin/leads/${r.lead_id}`} className={linkCls}>
-                        {r.leads?.full_name ?? 'Lead'}
-                      </Link>
-                    ) : (
-                      '–'
-                    )}
-                  </td>
-                  <td className={td}>
-                    <StatusBadge status={r.status} />
-                  </td>
-                  <td className={td}>
-                    <Badge tone={r.mode === 'demo' ? 'gold' : 'green'}>{r.mode === 'demo' ? 'Demo' : 'Live'}</Badge>
-                  </td>
-                  <td className={`${td} text-slate-600`}>{r.ai_provider ?? '–'}</td>
-                  <td className={`${td} tabular-nums`}>{r.steps?.length ?? 0}</td>
-                  <td className={`${td} tabular-nums`}>{fmtMs(r.duration_ms)}</td>
-                  <td className={`${td} text-right`}>
-                    <Link href={`/admin/runs?run=${r.id}`} className={linkCls}>
-                      View trail
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </TableShell>
+      {selected && (
+        <div className="mb-8">
+          <p className="mb-3 text-sm">
+            <Link href="/admin/runs" className={linkCls}>
+              Close audit trail
+            </Link>{' '}
+            ·{' '}
+            <Link href={`/admin/leads/${selected.lead.id}`} className={linkCls}>
+              Open lead
+            </Link>
+          </p>
+          <AutomationLogView run={selected.run} activities={selected.lead.activities} />
         </div>
+      )}
+
+      <TableShell>
+        <thead className="bg-slate-50">
+          <tr>
+            <th className={th}>Started</th>
+            <th className={th}>Lead</th>
+            <th className={th}>Trigger</th>
+            <th className={th}>Steps</th>
+            <th className={`${th} text-right`}>Duration</th>
+            <th className={th}>Status</th>
+            <th className={th} />
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map(({ run, lead }) => (
+            <tr key={run.id} className={run.id === selectedId ? 'bg-[#FDF3DC]/40' : 'hover:bg-slate-50'}>
+              <td className={`${td} whitespace-nowrap`}>{fmtDateTime(run.started_at)}</td>
+              <td className={td}>
+                <Link href={`/admin/leads/${lead.id}`} className="font-medium hover:underline">
+                  {lead.full_name}
+                </Link>
+              </td>
+              <td className={td}>{run.trigger}</td>
+              <td className={td}>
+                {run.steps.filter((s) => s.status === 'success').length}/{run.steps.length} completed
+              </td>
+              <td className={`${td} text-right tabular-nums`}>{fmtMs(run.duration_ms)}</td>
+              <td className={td}>
+                <StatusBadge status={run.status} />
+              </td>
+              <td className={td}>
+                <Link href={`/admin/runs?run=${run.id}${page > 1 ? `&page=${page}` : ''}`} className={linkCls}>
+                  Audit trail
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </TableShell>
+
+      {pages > 1 && (
+        <nav aria-label="Pagination" className="mt-4 flex items-center justify-between text-sm text-slate-600">
+          <span>
+            Page {page} of {pages}
+          </span>
+          <span className="flex gap-2">
+            {page > 1 && (
+              <Link
+                href={`/admin/runs?page=${page - 1}`}
+                className="rounded-lg bg-white px-3 py-1.5 font-semibold ring-1 ring-slate-300"
+              >
+                Previous
+              </Link>
+            )}
+            {page < pages && (
+              <Link
+                href={`/admin/runs?page=${page + 1}`}
+                className="rounded-lg bg-white px-3 py-1.5 font-semibold ring-1 ring-slate-300"
+              >
+                Next
+              </Link>
+            )}
+          </span>
+        </nav>
       )}
     </>
   );

@@ -24,11 +24,7 @@ export function getAdminClient(): SupabaseClient {
  * Falls back to the DEMO_MODE env var, then to demo (the safe default).
  */
 export async function getStoredMode(db: SupabaseClient): Promise<RunMode> {
-  const { data, error } = await db
-    .from('app_settings')
-    .select('value')
-    .eq('key', 'demo_mode')
-    .maybeSingle();
+  const { data, error } = await db.from('app_settings').select('value').eq('key', 'demo_mode').maybeSingle();
 
   if (!error && data?.value && typeof data.value.enabled === 'boolean') {
     return data.value.enabled ? 'demo' : 'live';
@@ -39,9 +35,6 @@ export async function getStoredMode(db: SupabaseClient): Promise<RunMode> {
 export async function setStoredMode(db: SupabaseClient, mode: RunMode): Promise<void> {
   const { error } = await db
     .from('app_settings')
-    .upsert(
-      { key: 'demo_mode', value: { enabled: mode === 'demo' } },
-      { onConflict: 'key' },
-    );
+    .upsert({ key: 'demo_mode', value: { enabled: mode === 'demo' } }, { onConflict: 'key' });
   if (error) throw new Error(`Could not save Demo Mode: ${error.message}`);
 }

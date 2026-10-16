@@ -1,110 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 import { getAdminClient } from '@/lib/supabase/admin';
-import type {
-  AutomationStep,
-  LeadTier,
-  RunMode,
-  StepStatus,
-} from '@/lib/automation-types';
+import type { AutomationStep, RunMode, StepStatus } from '@/lib/automation-types';
+import { ANALYSIS_JSON_SCHEMA, AnalysisSchema, LeadInput, type Analysis } from '@/lib/engine/schema';
+import { mockAnalysis, scoreLead } from '@/lib/engine/scoring';
+import { chooseSalesperson, classifyTier, type Salesperson } from '@/lib/engine/routing';
+import { nextBusinessDayAt, runLeadPipeline } from '@/lib/engine/pipeline';
+import { currentOpenCounts } from '@/lib/demo/generate';
+import { parseScenarioId, SCENARIO_COOKIE, SCENARIOS } from '@/lib/scenarios';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /* ------------------------------------------------------------------ */
-/* Schemas                                                             */
-/* ------------------------------------------------------------------ */
-
-const LeadInput = z.object({
-  full_name: z.string().trim().min(2).max(120),
-  email: z.string().trim().email().max(200),
-  company: z.string().trim().max(160).optional(),
-  phone: z.string().trim().max(40).optional(),
-  service_interest: z.string().trim().max(120).optional(),
-  budget_range: z.string().trim().max(80).optional(),
-  timeline: z.string().trim().max(120).optional(),
-  message: z.string().trim().min(10).max(4000),
-  source: z.string().trim().max(60).default('website_form'),
-});
-type LeadInput = z.infer<typeof LeadInput>;
-
-const SERVICE_CATEGORIES = [
-  'ai_automation',
-  'web_app',
-  'website',
-  'support_maintenance',
-  'consulting',
-  'other',
-] as const;
-const INTENTS = ['ready_to_buy', 'evaluating', 'exploring', 'support_request'] as const;
-const URGENCIES = ['low', 'medium', 'high'] as const;
-
-const AnalysisSchema = z.object({
-  service_category: z.enum(SERVICE_CATEGORIES),
-  intent: z.enum(INTENTS),
-  urgency: z.enum(URGENCIES),
-  estimated_budget_usd: z.number().transform((n) => Math.max(0, Math.round(n))),
-  score: z.number().transform((n) => Math.max(0, Math.min(100, Math.round(n)))),
-  confidence: z.number().transform((n) => Math.max(0, Math.min(1, n))),
-  summary: z.string().min(1),
-  key_signals: z.array(z.string()),
-  risks: z.array(z.string()),
-  recommended_next_step: z.string().min(1),
-  suggested_reply_subject: z.string().min(1),
-  suggested_reply_body: z.string().min(1),
-});
-type Analysis = z.infer<typeof AnalysisSchema>;
-
-/** JSON Schema sent to OpenAI structured outputs (strict mode). */
-const ANALYSIS_JSON_SCHEMA: Record<string, unknown> = {
-  type: 'object',
-  additionalProperties: false,
-  required: [
-    'service_category',
-    'intent',
-    'urgency',
-    'estimated_budget_usd',
-    'score',
-    'confidence',
-    'summary',
-    'key_signals',
-    'risks',
-    'recommended_next_step',
-    'suggested_reply_subject',
-    'suggested_reply_body',
-  ],
-  properties: {
-    service_category: { type: 'string', enum: [...SERVICE_CATEGORIES] },
-    intent: { type: 'string', enum: [...INTENTS] },
-    urgency: { type: 'string', enum: [...URGENCIES] },
-    estimated_budget_usd: { type: 'number' },
-    score: { type: 'integer' },
-    confidence: { type: 'number' },
-    summary: { type: 'string' },
-    key_signals: { type: 'array', items: { type: 'string' } },
-    risks: { type: 'array', items: { type: 'string' } },
-    recommended_next_step: { type: 'string' },
-    suggested_reply_subject: { type: 'string' },
-    suggested_reply_body: { type: 'string' },
-  },
-};
-
-/* ------------------------------------------------------------------ */
 /* Types and small helpers                                             */
 /* ------------------------------------------------------------------ */
-
-interface Salesperson {
-  id: string;
-  name: string;
-  email: string;
-  role_title: string;
-  tier_focus: LeadTier;
-  max_open_leads: number;
-  calendar_url: string | null;
-}
 
 interface ActivityInsert {
   activity_type: string;
@@ -125,10 +38,7 @@ class ValidationError extends Error {}
 
 const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-function must<T>(
-  res: { data: T | null; error: { message: string } | null },
-  context: string,
-): T {
+function must<T>(res: { data: T | null; error: { message: string } | null }, context: string): T {
   if (res.error) throw new Error(`${context}: ${res.error.message}`);
   if (res.data === null) throw new Error(`${context}: no data returned`);
   return res.data;
@@ -165,117 +75,6 @@ async function runStep<T>(
     });
     throw err;
   }
-}
-
-const firstName = (full: string): string => full.trim().split(/\s+/)[0] ?? full;
-
-/* ------------------------------------------------------------------ */
-/* Deterministic mock analyzer (Demo Mode and OpenAI fallback)         */
-/* ------------------------------------------------------------------ */
-
-function parseBudgetUsd(range?: string): number {
-  if (!range) return 0;
-  const nums = [...range.toLowerCase().replace(/,/g, '').matchAll(/(\d+(?:\.\d+)?)\s*(k|m)?/g)]
-    .map((m) => parseFloat(m[1]) * (m[2] === 'k' ? 1_000 : m[2] === 'm' ? 1_000_000 : 1))
-    .filter((n) => n > 0);
-  if (nums.length === 0) return 0;
-  return Math.round(nums.length > 1 ? (nums[0] + nums[1]) / 2 : nums[0]);
-}
-
-const REPLY_TEMPLATES: Record<(typeof SERVICE_CATEGORIES)[number], string> = {
-  ai_automation:
-    'Thanks for the detail on your workflow. Automation projects like this work best when we map the current process first, so I would like to set up a focused discovery call. We will walk through the steps, the systems involved, and where AI can remove manual work safely.',
-  web_app:
-    'Thanks for sharing the scope. A custom web application is a good fit for what you describe. I would like to learn who will use it day to day and which integrations matter, so a short scoping call is the best next step.',
-  website:
-    'Thanks for reaching out about your website. We can help with design and build. A quick call will let us confirm goals, content, and timeline, then we will send a clear proposal.',
-  support_maintenance:
-    'Thanks for flagging this. Our support team can take a look right away. Please reply with the page or screen where the problem appears and any recent changes, and we will confirm a fix and timeline.',
-  consulting:
-    'Thanks for getting in touch. We would be glad to help you evaluate options. A short call will help us understand where you are today and what a useful outcome looks like.',
-  other:
-    'Thanks for reaching out. We read your message and would like to learn a little more about what you need so we can point you to the right person.',
-};
-
-function mockAnalysis(input: LeadInput): Analysis {
-  const text = `${input.service_interest ?? ''} ${input.message}`.toLowerCase();
-  const budget = parseBudgetUsd(input.budget_range);
-
-  let category: Analysis['service_category'] = 'other';
-  if (/automat|workflow|agent|\bai\b|llm|n8n|zapier|rpa|integration/.test(text)) category = 'ai_automation';
-  else if (/web app|portal|dashboard|saas|platform|mvp|internal tool/.test(text)) category = 'web_app';
-  else if (/support|bug|fix|maintenance|hosting|retainer|broken|not working|plugin/.test(text)) category = 'support_maintenance';
-  else if (/website|landing|redesign|wordpress|shopify/.test(text)) category = 'website';
-  else if (/consult|audit|strategy|advice/.test(text)) category = 'consulting';
-
-  const urgency: Analysis['urgency'] = /asap|urgent|immediately|this week|deadline|right away/.test(text)
-    ? 'high'
-    : /month|quarter|soon|next/.test(`${text} ${input.timeline ?? ''}`.toLowerCase())
-      ? 'medium'
-      : 'low';
-
-  const intent: Analysis['intent'] =
-    category === 'support_maintenance'
-      ? 'support_request'
-      : budget >= 5000 && urgency !== 'low'
-        ? 'ready_to_buy'
-        : budget > 0
-          ? 'evaluating'
-          : 'exploring';
-
-  const base: Record<Analysis['service_category'], number> = {
-    ai_automation: 45,
-    web_app: 35,
-    website: 25,
-    consulting: 25,
-    support_maintenance: 12,
-    other: 15,
-  };
-  const budgetPoints =
-    budget >= 25000 ? 30 : budget >= 10000 ? 24 : budget >= 5000 ? 16 : budget >= 2000 ? 9 : budget > 0 ? 4 : 0;
-  const urgencyPoints = urgency === 'high' ? 15 : urgency === 'medium' ? 8 : 0;
-  const score = Math.max(
-    0,
-    Math.min(
-      100,
-      base[category] +
-        budgetPoints +
-        urgencyPoints +
-        (input.company ? 5 : 0) +
-        (input.phone ? 3 : 0) +
-        (input.message.length > 300 ? 4 : 0),
-    ),
-  );
-
-  const signals: string[] = [];
-  if (budget > 0) signals.push(`Stated budget around $${budget.toLocaleString('en-US')}`);
-  if (urgency !== 'low') signals.push(`Urgency read as ${urgency}`);
-  if (input.company) signals.push(`Company provided: ${input.company}`);
-  if (input.phone) signals.push('Phone number provided');
-  if (input.timeline) signals.push(`Timeline: ${input.timeline}`);
-
-  const risks: string[] = [];
-  if (budget === 0) risks.push('No budget stated');
-  if (!input.company) risks.push('No company provided');
-  if (input.message.length < 80) risks.push('Short message, scope is unclear');
-
-  return {
-    service_category: category,
-    intent,
-    urgency,
-    estimated_budget_usd: budget,
-    score,
-    confidence: 0.62,
-    summary: `${input.full_name}${input.company ? ` from ${input.company}` : ''} is asking about ${category.replace('_', ' ')}. Intent reads as ${intent.replace('_', ' ')} with ${urgency} urgency.`,
-    key_signals: signals,
-    risks,
-    recommended_next_step:
-      category === 'support_maintenance'
-        ? 'Triage the issue and reply within one business day.'
-        : 'Book a discovery call within two business days.',
-    suggested_reply_subject: `Re: your enquiry to Northstar Digital`,
-    suggested_reply_body: `Hi ${firstName(input.full_name)},\n\n${REPLY_TEMPLATES[category]}`,
-  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -325,67 +124,10 @@ async function openAiAnalysis(input: LeadInput): Promise<{ analysis: Analysis; m
 }
 
 /* ------------------------------------------------------------------ */
-/* Deterministic tiering and assignment rules                          */
-/* ------------------------------------------------------------------ */
-
-function classifyTier(a: Analysis): { tier: LeadTier; rule: string } {
-  if (a.score >= 75) return { tier: 'high', rule: `Score ${a.score} is 75 or higher` };
-  if (a.service_category === 'ai_automation' && a.estimated_budget_usd >= 10_000) {
-    return {
-      tier: 'high',
-      rule: `AI automation with budget $${a.estimated_budget_usd.toLocaleString('en-US')} (10,000 or more)`,
-    };
-  }
-  if (a.service_category === 'support_maintenance' && a.estimated_budget_usd < 2_500) {
-    return { tier: 'low', rule: 'Support request with budget under $2,500' };
-  }
-  if (a.score >= 40) return { tier: 'mid', rule: `Score ${a.score} is between 40 and 74` };
-  return { tier: 'low', rule: `Score ${a.score} is below 40` };
-}
-
-const FALLBACK_ORDER: Record<LeadTier, LeadTier[]> = {
-  high: ['high', 'mid', 'low'],
-  mid: ['mid', 'high', 'low'],
-  low: ['low', 'mid', 'high'],
-};
-
-function chooseSalesperson(
-  tier: LeadTier,
-  reps: Salesperson[],
-  openCounts: Map<string, number>,
-): { rep: Salesperson; rule: string } {
-  if (reps.length === 0) throw new Error('No active salespeople available for assignment');
-
-  const load = (r: Salesperson) => openCounts.get(r.id) ?? 0;
-
-  for (const focus of FALLBACK_ORDER[tier]) {
-    const candidates = reps
-      .filter((r) => r.tier_focus === focus && load(r) < r.max_open_leads)
-      .sort((a, b) => load(a) - load(b) || a.name.localeCompare(b.name));
-    if (candidates.length > 0) {
-      const rep = candidates[0];
-      const rule =
-        focus === tier
-          ? `${tier} tier routes to ${rep.name} (${load(rep)}/${rep.max_open_leads} open leads)`
-          : `${tier} tier primary rep at capacity, routed to ${rep.name} (${focus} tier fallback)`;
-      return { rep, rule };
-    }
-  }
-
-  const rep = [...reps].sort((a, b) => load(a) - load(b) || a.name.localeCompare(b.name))[0];
-  return { rep, rule: `Every rep is at capacity, routed to least loaded rep ${rep.name}` };
-}
-
-/* ------------------------------------------------------------------ */
 /* Email and scheduling helpers                                        */
 /* ------------------------------------------------------------------ */
 
-async function sendViaResend(
-  from: string,
-  to: string,
-  subject: string,
-  text: string,
-): Promise<string | undefined> {
+async function sendViaResend(from: string, to: string, subject: string, text: string): Promise<string | undefined> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -399,12 +141,71 @@ async function sendViaResend(
   return json.id;
 }
 
-function nextBusinessDayAt(hourUtc: number): Date {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + 1);
-  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
-  d.setUTCHours(hourUtc, 0, 0, 0);
-  return d;
+/* ------------------------------------------------------------------ */
+/* In-memory path: no database configured, or the enterprise demo       */
+/* ------------------------------------------------------------------ */
+
+type Breakdown = ReturnType<typeof scoreLead>['breakdown'] | null;
+
+/** Fields that let the form explain what the automation just did. */
+function explain(
+  analysis: Analysis,
+  breakdown: Breakdown,
+  tierRule: string,
+  rep: Pick<Salesperson, 'name' | 'role_title' | 'territory'>,
+  routeRule: string,
+  steps: AutomationStep[],
+  appointmentAt: string | null,
+) {
+  return {
+    tier_rule: tierRule,
+    routing_rule: routeRule,
+    assigned_role: rep.role_title,
+    territory: rep.territory ?? null,
+    breakdown,
+    analysis: {
+      service_category: analysis.service_category,
+      intent: analysis.intent,
+      urgency: analysis.urgency,
+      estimated_budget_usd: analysis.estimated_budget_usd,
+      summary: analysis.summary,
+      key_signals: analysis.key_signals,
+      risks: analysis.risks,
+      recommended_next_step: analysis.recommended_next_step,
+    },
+    reply: { subject: analysis.suggested_reply_subject, body: analysis.suggested_reply_body },
+    appointment_at: appointmentAt,
+    steps,
+  };
+}
+
+function simulate(payload: unknown, scenarioId: 'smb' | 'enterprise', persistedReason: string) {
+  const parsed = LeadInput.safeParse(payload);
+  if (!parsed.success) {
+    const details = parsed.error.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
+    return NextResponse.json({ ok: false, error: 'Invalid submission', details }, { status: 422 });
+  }
+  const scenario = SCENARIOS[scenarioId];
+  const r = runLeadPipeline(parsed.data, scenario.reps, currentOpenCounts(scenarioId), { persisted: false });
+  return NextResponse.json(
+    {
+      ok: true,
+      mode: 'demo',
+      persisted: false,
+      persisted_reason: persistedReason,
+      scenario: scenarioId,
+      team: scenario.company,
+      lead_id: null,
+      tier: r.tier,
+      score: r.analysis.score,
+      assigned_to: r.rep.name,
+      ai_provider: 'mock',
+      status: 'success',
+      duration_ms: r.durationMs,
+      ...explain(r.analysis, r.breakdown, r.tierRule, r.rep, r.routeRule, r.steps, r.appointmentAt),
+    },
+    { status: 201 },
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -421,6 +222,12 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: 'Body must be valid JSON' }, { status: 400 });
   }
+
+  // The enterprise demo team only exists in memory, and without a database the demo still runs end to end.
+  const scenarioId = parseScenarioId((await cookies()).get(SCENARIO_COOKIE)?.value);
+  if (scenarioId === 'enterprise') return simulate(payload, scenarioId, 'Enterprise demo team is simulated.');
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY)
+    return simulate(payload, scenarioId, 'No database is configured.');
 
   let db: SupabaseClient;
   try {
@@ -764,6 +571,7 @@ export async function POST(req: NextRequest) {
     });
 
     /* 8. Appointment (high tier only) -------------------------------- */
+    let appointmentAt: string | null = null;
     await runStep(steps, 'propose_appointment', 'Propose discovery call', async () => {
       if (tier !== 'high') {
         return {
@@ -773,6 +581,7 @@ export async function POST(req: NextRequest) {
         };
       }
       const when = nextBusinessDayAt(17);
+      appointmentAt = when.toISOString();
       const appt = must(
         await db
           .from('appointments')
@@ -834,6 +643,18 @@ export async function POST(req: NextRequest) {
         ai_provider: provider,
         status: finalStatus,
         duration_ms: durationMs,
+        persisted: true,
+        scenario: scenarioId,
+        team: SCENARIOS[scenarioId].company,
+        ...explain(
+          analysis,
+          provider === 'mock' ? scoreLead(input).breakdown : null,
+          tierRule,
+          rep,
+          assigned.rule,
+          steps,
+          appointmentAt,
+        ),
       },
       { status: 201 },
     );

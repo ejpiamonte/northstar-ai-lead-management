@@ -1,47 +1,47 @@
 # Architecture
 
-Northstar Digital is a fictional agency used to demonstrate an automated lead-qualification and sales-routing system.
+Northstar Digital is a fictional agency used to demonstrate inbound lead qualification and sales routing. This document describes the current repository implementation; it does not assert hosted deployment or external integration status.
 
 ## Request flow
 
 ```text
 Public lead form
-    → POST /api/webhook/lead
-    → validate fields and check for recent duplicate submissions
-    → persist the lead and automation run in Supabase
-    → deterministic mock analysis (Demo Mode is enforced server-side)
-    → apply tier rules and choose an available salesperson
-    → log mock email drafts and proposed appointments
-    → return the score, tier, and assigned specialist
+  → POST /api/webhook/lead
+  → validate request
+  → enforce Demo Mode
+  → enterprise scenario or no Supabase configured: run lib/engine/pipeline.ts in memory and return the result (nothing stored)
+  → otherwise persist lead and automation run in Supabase
+  → deterministic analysis and tier classification
+  → choose a salesperson by tier fit and workload
+  → persist run/activity and mock email/appointment records
+  → return score, tier, assignment, run identifiers, and an explanation (score breakdown, tier rule, routing reason, drafted reply, steps)
 ```
 
-The service-role key is only read by server-side modules. Supabase tables have row-level security enabled with no public policies. Public form data is written through the server route; it is not displayed in the portfolio dashboard.
+## Components
 
-## Portfolio dashboard
+- `app/page.tsx` and `components/LeadForm.tsx`: landing page and visitor form.
+- `app/api/webhook/lead/route.ts`: validation and workflow orchestration.
+- `lib/supabase/admin.ts`: server-side Supabase service-role client.
+- `lib/engine/`: schema, scoring (`scoreLead`, `mockAnalysis`), tier and routing rules (`classifyTier`, `chooseSalesperson`), and the in-memory pipeline. Shared by the API route, the demo generator, and the tests.
+- `lib/scenarios.ts`: Small business and Enterprise teams, volumes, and response targets.
+- `lib/demo/generate.ts`: deterministic 30-day demo pipeline built with the real engine; `lib/data.ts` serves it to `/admin`; `lib/insights.ts` computes dashboard metrics.
+- `app/admin/*`: overview, leads (list and detail), meetings, run history, email log, sales team, and how it works. All read demo data only.
+- `proxy.ts`: `?scenario=smb|enterprise` sets the scenario cookie and redirects.
+- `supabase/migrations/001_northstar_init.sql`: Northstar schema and fictional seed reps.
+- `n8n/northstar-lead-workflow.json`: separate illustrative workflow export, not invoked by Next.js.
 
-`/admin` is a curated, read-only page with synthetic example records and explanatory routing rules. It does not query Supabase and it does not render contact details or visitor submissions. The old operational console paths redirect to `/admin`. Keep these routes this way unless real authentication and authorization are added first.
+## Important route exposure
 
-## Demo safety
+As of 2026-10-17 no `/admin` route queries the database. All of them read the generated demo pipeline through `lib/data.ts`, so deploying with Supabase credentials no longer exposes stored submissions through the admin area. There is still no authentication; add it before building any view of real records.
 
-- The API always selects Demo Mode; request payloads and headers cannot select Live mode.
-- The analyzer is deterministic and local. Email and calendar actions are written as mock logs only.
-- The public form tells visitors that submissions are stored to demonstrate the workflow.
-- Do not submit real or sensitive personal information to the portfolio deployment. Consider adding a rate limit or CAPTCHA before sharing it broadly.
+## Security boundaries
 
-## Tier and assignment rules
+Northstar enables RLS without public policies. The server service-role client bypasses RLS, so RLS does not prevent that client from reading or writing records. Demo Mode is forced in the API path; provider-related code exists but the public path does not contact OpenAI or send email. The form stores visitor submissions; use synthetic data and keep secrets out of client bundles and Git.
 
-| Order | Rule | Tier | Primary rep |
-| --- | --- | --- | --- |
-| 1 | Score 75 or higher | High | Sarah |
-| 2 | AI automation with budget at least $10,000 | High | Sarah |
-| 3 | Support request with budget under $2,500 | Low | Maria |
-| 4 | Score 40 to 74 | Mid | Alex |
-| 5 | Anything else | Low | Maria |
+## Related references
 
-If the primary rep is at capacity, the system checks the fixed fallback order, sorts eligible candidates by open workload and name, then uses the least-loaded rep if all are at capacity.
-
-## Supabase setup
-
-Run `supabase/migrations/001_northstar_init.sql` in the Supabase SQL editor. Configure `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as server environment variables. Never commit `.env.local` or expose the service-role key in client-side code.
-
-The n8n JSON file is a separate illustrative export. It is not used by the Next.js webhook and requires its own credentials and setup if imported into n8n.
+- [Product requirements](PRD.md)
+- [Technical reference](TRD.md)
+- [Workflow](APP_FLOW.md)
+- [Database schema and shared SQL](DATABASE_SCHEMA.md)
+- [Readiness plan](IMPLEMENTATION_PLAN.md)

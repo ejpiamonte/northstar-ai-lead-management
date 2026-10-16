@@ -1,116 +1,101 @@
-// app/admin/team/page.tsx
-import { getAdminClient } from '@/lib/supabase/admin';
-import { OPEN_STATUSES, unwrap, type LeadRow, type SalespersonRow } from '@/lib/admin-data';
-import { Badge, Card, EmptyState, PageHeader, TierBadge, humanize, linkCls } from '@/components/admin/ui';
+import Link from 'next/link';
+import { getLeads, getScenario } from '@/lib/data';
+import { summarize } from '@/lib/insights';
+import { PageHeader, TableShell, TierBadge, humanize, td, th } from '@/components/admin/ui';
+import { duration, minutesLabel, pct } from '@/lib/format';
 
-export const metadata = { title: 'Salespeople' };
-export const dynamic = 'force-dynamic';
-
-type LeadLite = Pick<LeadRow, 'assigned_to' | 'status' | 'score'>;
+export const metadata = { title: 'Team' };
 
 export default async function TeamPage() {
-  const db = getAdminClient();
-  const [repsRes, leadsRes] = await Promise.all([
-    db.from('salespeople').select('*').order('name'),
-    db.from('leads').select('assigned_to, status, score').not('assigned_to', 'is', null).limit(2000),
-  ]);
-  const reps = unwrap<SalespersonRow[]>(repsRes, 'Load salespeople');
-  const leads = unwrap<LeadLite[]>(leadsRes, 'Load assigned leads');
-
-  if (reps.length === 0) {
-    return (
-      <>
-        <PageHeader title="Salespeople" description="Who receives leads and how loaded they are." />
-        <EmptyState
-          title="No salespeople found"
-          body="Run supabase/migrations/001_northstar_init.sql to seed Sarah, Alex, and Maria."
-        />
-      </>
-    );
-  }
+  const [leads, scenario] = await Promise.all([getLeads(), getScenario()]);
+  const s = summarize(leads, scenario);
+  const rows = s.workload.map(({ rep, open, assigned30d }) => {
+    const mine = leads.filter((l) => l.assigned_to === rep.id);
+    const followed = mine.filter((l) => l.followUpMs !== null);
+    const sorted = followed.map((l) => l.followUpMs!).sort((a, b) => a - b);
+    return {
+      rep,
+      open,
+      assigned30d,
+      won: mine.filter((l) => l.status === 'won').length,
+      meetings: mine.filter((l) => l.status === 'appointment_set' || l.status === 'won').length,
+      medianFollowUp: sorted.length ? sorted[Math.floor(sorted.length / 2)]! : null,
+      onTarget: followed.length ? followed.filter((l) => l.withinTarget).length / followed.length : null,
+      overflow: mine.filter((l) => /capacity/.test(l.routeRule)).length,
+    };
+  });
 
   return (
     <>
       <PageHeader
-        title="Salespeople"
-        description="Who receives leads and how loaded they are. Routing follows the tier each lead scores into."
+        title="Sales team"
+        description={`Who receives which leads, how loaded they are, and how quickly they follow up. Routing sends each tier to its owner${
+          scenario.id === 'enterprise' ? ' within the lead’s territory' : ''
+        }, then to the least-loaded backup when someone is at capacity.`}
       />
-
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {reps.map((r) => {
-          const mine = leads.filter((l) => l.assigned_to === r.id);
-          const open = mine.filter((l) => OPEN_STATUSES.includes(l.status)).length;
-          const won = mine.filter((l) => l.status === 'won').length;
-          const scored = mine.filter((l) => l.score !== null);
-          const avg = scored.length
-            ? Math.round(scored.reduce((s, l) => s + (l.score ?? 0), 0) / scored.length)
-            : null;
-          const pct = Math.min(100, Math.round((open / r.max_open_leads) * 100));
-
-          return (
-            <Card key={r.id}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="text-lg font-semibold text-[#0B1F3A] [font-family:var(--font-display)]">{r.name}</h2>
-                  <p className="text-sm text-slate-600">{r.role_title}</p>
-                </div>
-                <Badge tone={r.active ? 'green' : 'slate'}>{r.active ? 'Active' : 'Inactive'}</Badge>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <TierBadge tier={r.tier_focus} />
-                <Badge>{humanize(r.specialty)}</Badge>
-              </div>
-
-              <div className="mt-5">
-                <div className="flex items-baseline justify-between text-sm">
-                  <span className="text-slate-600">Open leads</span>
-                  <span className="tabular-nums font-medium text-[#0B1F3A]">
-                    {open} of {r.max_open_leads}
+      <TableShell>
+        <thead className="bg-slate-50">
+          <tr>
+            <th className={th}>Salesperson</th>
+            <th className={th}>Handles</th>
+            {scenario.id === 'enterprise' && <th className={th}>Territory</th>}
+            <th className={th}>Open / capacity</th>
+            <th className={`${th} text-right`}>Assigned (30 d)</th>
+            <th className={`${th} text-right`}>Median follow-up</th>
+            <th className={`${th} text-right`}>On target</th>
+            <th className={`${th} text-right`}>Meetings</th>
+            <th className={`${th} text-right`}>Won</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const ratio = Math.min(1, r.open / r.rep.max_open_leads);
+            return (
+              <tr key={r.rep.id} className="hover:bg-slate-50">
+                <td className={td}>
+                  <Link href={`/admin/leads?owner=${r.rep.id}`} className="font-medium hover:underline">
+                    {r.rep.name}
+                  </Link>
+                  <span className="block text-xs text-slate-500">{r.rep.role_title}</span>
+                </td>
+                <td className={td}>
+                  <TierBadge tier={r.rep.tier_focus} />
+                  <span className="block pt-1 text-xs text-slate-500">{humanize(r.rep.specialty)}</span>
+                </td>
+                {scenario.id === 'enterprise' && <td className={td}>{r.rep.territory}</td>}
+                <td className={td}>
+                  <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-24 overflow-hidden rounded bg-slate-100">
+                      <div
+                        className={`h-full rounded-r ${ratio >= 1 ? 'bg-[#d03b3b]' : 'bg-[#2a78d6]'}`}
+                        style={{ width: `${ratio * 100}%` }}
+                      />
+                    </div>
+                    <span className="tabular-nums">
+                      {r.open}/{r.rep.max_open_leads}
+                    </span>
+                  </div>
+                  {r.overflow > 0 && <span className="text-xs text-slate-500">{r.overflow} received as backup</span>}
+                </td>
+                <td className={`${td} text-right tabular-nums`}>{r.assigned30d}</td>
+                <td className={`${td} text-right tabular-nums`}>
+                  {r.medianFollowUp !== null ? duration(r.medianFollowUp) : '–'}
+                  <span className="block text-xs text-slate-500">
+                    target {minutesLabel(scenario.responseTargetMinutes[r.rep.tier_focus])}
                   </span>
-                </div>
-                <div
-                  className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"
-                  role="img"
-                  aria-label={`${open} of ${r.max_open_leads} open leads`}
-                >
-                  <div
-                    className={`h-full rounded-full ${pct >= 90 ? 'bg-red-500' : 'bg-[#F2B544]'}`}
-                    style={{ width: `${Math.max(pct, open > 0 ? 4 : 0)}%` }}
-                  />
-                </div>
-              </div>
-
-              <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4 text-sm">
-                <div>
-                  <dt className="text-xs text-slate-500">Assigned</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums text-[#0B1F3A]">{mine.length}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Won</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums text-[#0B1F3A]">{won}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Average score</dt>
-                  <dd className="mt-0.5 font-semibold tabular-nums text-[#0B1F3A]">{avg ?? '–'}</dd>
-                </div>
-              </dl>
-
-              <p className="mt-4 text-sm text-slate-600">
-                <a href={`mailto:${r.email}`} className={linkCls}>
-                  {r.email}
-                </a>
-                <span className="block text-xs text-slate-500">Timezone {r.timezone}</span>
-                {r.calendar_url && (
-                  <a href={r.calendar_url} className={`${linkCls} text-xs`} target="_blank" rel="noreferrer">
-                    Booking page
-                  </a>
-                )}
-              </p>
-            </Card>
-          );
-        })}
-      </div>
+                </td>
+                <td className={`${td} text-right tabular-nums`}>{r.onTarget !== null ? pct(r.onTarget) : '–'}</td>
+                <td className={`${td} text-right tabular-nums`}>{r.meetings}</td>
+                <td className={`${td} text-right tabular-nums`}>{r.won}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableShell>
+      <p className="mt-4 text-sm text-slate-500">
+        Follow-up time is from the automated acknowledgement to the rep&apos;s first personal reply. Click a name to see
+        their leads.
+      </p>
     </>
   );
 }

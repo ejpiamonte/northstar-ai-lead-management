@@ -3,22 +3,13 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 
-export default function AdminError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+export default function AdminError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error('[northstar] admin error:', error);
   }, [error]);
 
   return (
-    <div
-      role="alert"
-      className="mx-auto mt-10 max-w-xl rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200"
-    >
+    <div role="alert" className="mx-auto mt-10 max-w-xl rounded-2xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
       <span className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600">
         <svg
           viewBox="0 0 20 20"
@@ -38,9 +29,8 @@ export default function AdminError({
         This page could not load
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-slate-600">
-        Something failed while loading this part of the console. Your leads and automation runs are
-        not affected. Try again, and if it keeps happening, check that Supabase is reachable and the
-        environment variables are set.
+        Something failed while loading this part of the console. Your leads and automation runs are not affected. Try
+        again. If it keeps happening, reload the page or return to the overview.
       </p>
 
       {error.message && (

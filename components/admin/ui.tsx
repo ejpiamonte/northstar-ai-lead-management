@@ -155,17 +155,7 @@ export function Stat({ label, value, hint }: { label: string; value: string; hin
   );
 }
 
-export function EmptyState({
-  title,
-  body,
-  href,
-  cta,
-}: {
-  title: string;
-  body: string;
-  href?: string;
-  cta?: string;
-}) {
+export function EmptyState({ title, body, href, cta }: { title: string; body: string; href?: string; cta?: string }) {
   return (
     <div className="rounded-2xl bg-white p-10 text-center shadow-sm ring-1 ring-slate-200">
       <p className="text-base font-semibold text-[#0B1F3A]">{title}</p>

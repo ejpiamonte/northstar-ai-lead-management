@@ -1,6 +1,9 @@
 // app/page.tsx
 import Link from 'next/link';
 import LeadForm from '@/components/LeadForm';
+import ScenarioSwitch from '@/components/admin/ScenarioSwitch';
+import { getScenario } from '@/lib/data';
+import { SCENARIOS } from '@/lib/scenarios';
 
 const SERVICES = [
   {
@@ -18,7 +21,10 @@ const SERVICES = [
 ];
 
 const STEPS = [
-  { title: 'We read your message', body: 'The form hands your enquiry to an automation that checks it for completeness.' },
+  {
+    title: 'We read your message',
+    body: 'The form hands your enquiry to an automation that checks it for completeness.',
+  },
   { title: 'We score the fit', body: 'AI weighs service fit, budget, and urgency, and explains its reasoning.' },
   { title: 'We route it to a person', body: 'Clear rules send you to the specialist who handles work like yours.' },
   { title: 'You get a reply', body: 'A tailored acknowledgment goes out, and bigger projects get a call proposed.' },
@@ -32,12 +38,16 @@ function Star({ className = '' }: { className?: string }) {
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const scenario = await getScenario();
   return (
     <>
       <header className="bg-[#0B1F3A]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-8">
-          <Link href="/" className="flex items-center gap-2.5 text-white outline-none focus-visible:ring-2 focus-visible:ring-[#F2B544] rounded-md">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 text-white outline-none focus-visible:ring-2 focus-visible:ring-[#F2B544] rounded-md"
+          >
             <Star className="h-7 w-7" />
             <span className="text-lg font-semibold tracking-tight [font-family:var(--font-display)]">
               Northstar <span className="font-normal text-slate-400">Digital</span>
@@ -65,7 +75,16 @@ export default function HomePage() {
             <path d="M340 250L400 340L610 160" />
           </g>
           <g fill="#F2B544">
-            {[[80, 300], [220, 210], [340, 250], [470, 120], [610, 160], [720, 60], [260, 90], [400, 340]].map(([x, y]) => (
+            {[
+              [80, 300],
+              [220, 210],
+              [340, 250],
+              [470, 120],
+              [610, 160],
+              [720, 60],
+              [260, 90],
+              [400, 340],
+            ].map(([x, y]) => (
               <circle key={`${x}-${y}`} cx={x} cy={y} r="4" />
             ))}
           </g>
@@ -81,7 +100,11 @@ export default function HomePage() {
               system reads, scores, and routes your message before you close the tab.
             </p>
             <ul className="mt-8 flex flex-col gap-3 text-sm text-slate-300">
-              {['A named specialist, not a shared inbox', 'A reply shaped by what you wrote', 'A call proposed for larger projects'].map((t) => (
+              {[
+                'A named specialist, not a shared inbox',
+                'A reply shaped by what you wrote',
+                'A call proposed for larger projects',
+              ].map((t) => (
                 <li key={t} className="flex items-center gap-3">
                   <Star className="h-3.5 w-3.5 shrink-0" />
                   {t}
@@ -91,6 +114,10 @@ export default function HomePage() {
           </div>
 
           <div id="contact" className="scroll-mt-6">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
+              <span>Demo routing team: {scenario.company}</span>
+              <ScenarioSwitch current={scenario.id} tone="dark" />
+            </div>
             <LeadForm />
           </div>
         </div>
@@ -98,7 +125,10 @@ export default function HomePage() {
 
       <main>
         <section aria-labelledby="services" className="mx-auto max-w-6xl px-4 py-16 sm:px-8 sm:py-20">
-          <h2 id="services" className="text-2xl font-semibold tracking-tight text-[#0B1F3A] [font-family:var(--font-display)]">
+          <h2
+            id="services"
+            className="text-2xl font-semibold tracking-tight text-[#0B1F3A] [font-family:var(--font-display)]"
+          >
             What we build
           </h2>
           <ul className="mt-8 grid gap-5 md:grid-cols-3">
@@ -111,9 +141,82 @@ export default function HomePage() {
           </ul>
         </section>
 
+        <section aria-labelledby="explore" className="mx-auto max-w-6xl px-4 pb-16 sm:px-8 sm:pb-20">
+          <h2
+            id="explore"
+            className="text-2xl font-semibold tracking-tight text-[#0B1F3A] [font-family:var(--font-display)]"
+          >
+            Explore the workflow demo
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
+            The same rules power a three-person team and a 12-rep sales organisation. Pick a starting point.
+          </p>
+          <ul className="mt-6 grid gap-4 md:grid-cols-3">
+            {[
+              {
+                href: '/admin',
+                title: 'Team dashboard',
+                body: 'Lead volume, response times, pipeline, and workload across the last 30 days.',
+              },
+              {
+                href: '/admin/leads',
+                title: 'Lead inbox',
+                body: 'Filter by tier, owner, or territory and open any lead to see why it was routed.',
+              },
+              {
+                href: '/admin/how-it-works',
+                title: 'How it works',
+                body: 'The scoring and routing rules, and what changes between small and large teams.',
+              },
+            ].map((c) => (
+              <li key={c.href}>
+                <Link
+                  href={c.href}
+                  className="block h-full rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 outline-none transition hover:ring-[#F2B544] focus-visible:ring-2 focus-visible:ring-[#F2B544]"
+                >
+                  <h3 className="text-base font-semibold text-[#0B1F3A] [font-family:var(--font-display)]">
+                    {c.title} →
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">{c.body}</p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {(['smb', 'enterprise'] as const).map((id) => {
+              const sc = SCENARIOS[id];
+              return (
+                <div key={id} className="rounded-2xl bg-[#0B1F3A] p-6 text-white">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#F2B544]">{sc.label}</p>
+                  <h3 className="mt-1 text-lg font-semibold">{sc.company}</h3>
+                  <p className="mt-1 text-sm text-slate-300">{sc.tagline}</p>
+                  <ul className="mt-4 space-y-1.5 text-sm text-slate-300">
+                    {id === 'smb' ? (
+                      <>
+                        <li>One owner per tier, with automatic backup when someone is full</li>
+                        <li>Instant replies so no enquiry waits overnight</li>
+                        <li>Works with a shared inbox and a simple CRM</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>Territory routing across North America, EMEA, and APAC</li>
+                        <li>15-minute follow-up target for high-value leads</li>
+                        <li>Built to sync with Salesforce or HubSpot and Slack</li>
+                      </>
+                    )}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         <section aria-labelledby="how" className="border-t border-slate-200 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-8 sm:py-20">
-            <h2 id="how" className="text-2xl font-semibold tracking-tight text-[#0B1F3A] [font-family:var(--font-display)]">
+            <h2
+              id="how"
+              className="text-2xl font-semibold tracking-tight text-[#0B1F3A] [font-family:var(--font-display)]"
+            >
               What happens after you hit send
             </h2>
             <ol className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
