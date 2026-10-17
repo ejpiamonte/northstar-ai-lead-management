@@ -3,6 +3,8 @@ import { getLeads, getScenario } from '@/lib/data';
 import { summarize } from '@/lib/insights';
 import { PageHeader, TableShell, TierBadge, humanize, td, th } from '@/components/admin/ui';
 import { duration, minutesLabel, pct } from '@/lib/format';
+import { CATEGORY_LABEL } from '@/lib/engine/scoring';
+import type { ServiceCategory } from '@/lib/engine/schema';
 
 export const metadata = { title: 'Team' };
 
@@ -60,7 +62,9 @@ export default async function TeamPage() {
                 </td>
                 <td className={td}>
                   <TierBadge tier={r.rep.tier_focus} />
-                  <span className="block pt-1 text-xs text-slate-500">{humanize(r.rep.specialty)}</span>
+                  <span className="block pt-1 text-xs text-slate-500">
+                    {CATEGORY_LABEL[r.rep.specialty as ServiceCategory] ?? humanize(r.rep.specialty)}
+                  </span>
                 </td>
                 {scenario.id === 'enterprise' && <td className={td}>{r.rep.territory}</td>}
                 <td className={td}>
